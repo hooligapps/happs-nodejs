@@ -1,0 +1,33 @@
+{
+  "name": "happs-nodejs",
+  "version": "1.0.0",
+  "description": "Node.js client for Hooligapps Bridge API",
+  "main": "client.js",
+  "types": "client.d.ts",
+  "files": [
+    "client.js",
+    "client.d.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hooligapps/happs-nodejs.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hooligapps/happs-nodejs/issues"
+  },
+  "homepage": "https://github.com/hooligapps/happs-nodejs#readme",
+  "peerDependencies": {
+    "jose": ">=5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "jose": {
+      "optional": true
+    }
+  },
+  "license": "MIT"
+}
