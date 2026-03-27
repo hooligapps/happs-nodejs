@@ -111,6 +111,26 @@ async function run(token) {
 }
 ```
 
+## JWKS Token Verification Example
+
+Use this when you want local JWT verification via platform JWKS (no API call for token verification):
+
+```js
+const { HAppsClient } = require("happs-nodejs");
+
+const client = new HAppsClient("https://hooli.games", "CLIENT_ID", "SECRET");
+
+async function verifyWithJwks(token) {
+  const payload = await client.verifyTokenJWKS(token);
+
+  return {
+    sub: payload.sub,
+    verified: payload.verified,
+    aud: payload.aud,
+  };
+}
+```
+
 ## Client Features
 
 - HMAC request signing compatible with bridge guard format
