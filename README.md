@@ -85,7 +85,7 @@ async function run(token) {
     const profile = await client.getProfile(tokenData.sub);
     const payment = await client.initPayment(
       tokenData.sub,
-      "pack-150",
+      "76df333e-b84a-46c2-a4f0-4b6c078c70f6",
       "150 crystals",
       9.99,
       "USD",
