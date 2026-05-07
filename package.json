@@ -22,7 +22,7 @@
   },
   "homepage": "https://github.com/hooligapps/happs-nodejs#readme",
   "peerDependencies": {
-    "jose": ">=5.0.0"
+    "jose": "^6.2.2"
   },
   "peerDependenciesMeta": {
     "jose": {
