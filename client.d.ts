@@ -24,10 +24,19 @@ export interface PaymentInitResult {
   orderId: string;
 }
 
+export interface CheckoutInitResult {
+  orderId: string;
+  paymentUrl: string;
+}
+
+export interface CheckoutOptions {
+  redirectUrl?: string;
+}
+
 export interface PaymentStatus {
   orderId: string;
-  status: "approved" | "denied";
-  transactionId: string;
+  status: "approved" | "denied" | "pending";
+  transactionId: string | null;
 }
 
 export class HAppsClientError extends Error {}
@@ -70,6 +79,15 @@ export class HAppsClient {
     currency: string,
     desc: string,
   ): Promise<PaymentInitResult>;
+  createCheckout(
+    publicId: string,
+    pid: string,
+    name: string,
+    price: number,
+    currency: string,
+    desc: string,
+    options?: CheckoutOptions,
+  ): Promise<CheckoutInitResult>;
   getPayment(orderId: string): Promise<PaymentStatus>;
 
   verifyTokenJWKS(token: string): Promise<TokenPayload>;

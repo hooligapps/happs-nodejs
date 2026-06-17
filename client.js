@@ -209,6 +209,26 @@ class HAppsClient {
     });
   }
 
+  async createCheckout(publicId, pid, name, price, currency, desc, options = {}) {
+    this.assertNonEmptyString(publicId, "publicId");
+    this.assertNonEmptyString(pid, "pid");
+    this.assertNonEmptyString(name, "name");
+    this.assertPositiveNumber(price, "price");
+    this.assertNonEmptyString(currency, "currency");
+    this.assertNonEmptyString(desc, "desc");
+
+    const path = "/api/v1/bridge/checkout";
+    return this._makeRequest("POST", path, {
+      publicId,
+      pid,
+      name,
+      price,
+      currency,
+      desc,
+      ...(options.redirectUrl ? { redirectUrl: options.redirectUrl } : {}),
+    });
+  }
+
   async getPayment(orderId) {
     this.assertNonEmptyString(orderId, "orderId");
     const path = `/api/v1/bridge/payment/${orderId}`;

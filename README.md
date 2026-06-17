@@ -7,7 +7,7 @@ Node.js client for the Hooligapps Bridge API.
 From the Git repository:
 
 ```bash
-npm i git+https://github.com/hooligapps/happs-nodejs.git#nodejs-v1.0.0
+npm i git+https://github.com/hooligapps/happs-nodejs.git#v1.0.2
 ```
 
 Local install from the project folder:
@@ -42,6 +42,7 @@ const { HAppsClient } = require("./client");
 - `verifyToken(token)`
 - `getProfile(publicId)`
 - `initPayment(publicId, pid, name, price, currency, desc)`
+- `createCheckout(publicId, pid, name, price, currency, desc, options?)`
 - `getPayment(orderId)`
 
 ## Interaction Flows
@@ -91,8 +92,17 @@ async function run(token) {
       "USD",
       "Starter pack",
     );
+    const checkout = await client.createCheckout(
+      tokenData.sub,
+      "76df333e-b84a-46c2-a4f0-4b6c078c70f6",
+      "150 crystals",
+      9.99,
+      "USD",
+      "Starter pack",
+      { redirectUrl: "mygame://payment-finish" },
+    );
 
-    console.log(profile.publicId, payment.orderId);
+    console.log(profile.publicId, payment.orderId, checkout.paymentUrl);
   } catch (e) {
     if (e instanceof HAppsHttpError) {
       console.error("HTTP", e.status, e.errorCode, e.bodyText);
