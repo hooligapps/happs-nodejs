@@ -12,7 +12,6 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ## [1.0.2] - 2026-06-17
 
 ### Added
-- `createCheckout(publicId, pid, name, price, currency, desc, options)` for external clients that need a hosted checkout URL and optional redirect URL.
 
 ### Changed
 - `PaymentStatus` typings now include `pending` and nullable `transactionId`.

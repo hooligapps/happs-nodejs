@@ -1,43 +1,5 @@
 const crypto = require("crypto");
 
-class HAppsClientError extends Error {
-  constructor(message) {
-    super(message);
-    this.name = "HAppsClientError";
-  }
-}
-
-class HAppsTimeoutError extends HAppsClientError {
-  constructor(method, path) {
-    super(`Request timed out: ${method} ${path}`);
-    this.name = "HAppsTimeoutError";
-    this.method = method;
-    this.path = path;
-  }
-}
-
-class HAppsHttpError extends HAppsClientError {
-  constructor({ status, method, path, bodyText, errorCode }) {
-    super(`HTTP ${status}: ${errorCode || bodyText || "request_failed"}`);
-    this.name = "HAppsHttpError";
-    this.status = status;
-    this.method = method;
-    this.path = path;
-    this.bodyText = bodyText;
-    this.errorCode = errorCode;
-  }
-}
-
-class HAppsNetworkError extends HAppsClientError {
-  constructor(method, path, cause) {
-    super(`Network error: ${method} ${path}`);
-    this.name = "HAppsNetworkError";
-    this.method = method;
-    this.path = path;
-    this.cause = cause;
-  }
-}
-
 class HAppsClient {
   constructor(platformUrl, clientId, secret, timeout = 5000) {
     if (!platformUrl) throw new Error("platformUrl is required");
@@ -53,15 +15,7 @@ class HAppsClient {
   }
 
   createSignature(method, path, timestamp, body) {
-    const bodyHash = crypto
-      .createHash("sha256")
-      .update(body ? JSON.stringify(body) : "")
-      .digest("hex");
-
-    return crypto
-      .createHmac("sha256", this.secret)
-      .update(`${method}\n${path}\n${timestamp}\n${bodyHash}`)
-      .digest("hex");
+    return HAppsClient.createHAppsSignature(this.secret, method, path, timestamp, body);
   }
 
   createHeaders(method, path, body) {
@@ -209,26 +163,6 @@ class HAppsClient {
     });
   }
 
-  async createCheckout(publicId, pid, name, price, currency, desc, options = {}) {
-    this.assertNonEmptyString(publicId, "publicId");
-    this.assertNonEmptyString(pid, "pid");
-    this.assertNonEmptyString(name, "name");
-    this.assertPositiveNumber(price, "price");
-    this.assertNonEmptyString(currency, "currency");
-    this.assertNonEmptyString(desc, "desc");
-
-    const path = "/api/v1/bridge/checkout";
-    return this._makeRequest("POST", path, {
-      publicId,
-      pid,
-      name,
-      price,
-      currency,
-      desc,
-      ...(options.redirectUrl ? { redirectUrl: options.redirectUrl } : {}),
-    });
-  }
-
   async getPayment(orderId) {
     this.assertNonEmptyString(orderId, "orderId");
     const path = `/api/v1/bridge/payment/${orderId}`;
@@ -264,6 +198,165 @@ class HAppsClient {
       exp: payload.exp,
     };
   }
+
+  static requirePayloadString(payload, fieldName) {
+    const value = payload && payload[fieldName];
+    if (typeof value !== "string" || value.trim().length === 0) {
+      throw new HAppsClientError(`${fieldName} must be a non-empty string`);
+    }
+    return value.trim();
+  }
+
+  static requirePayloadPositiveNumber(payload, fieldName) {
+    const value = Number(payload && payload[fieldName]);
+    if (!Number.isFinite(value) || value <= 0) {
+      throw new HAppsClientError(`${fieldName} must be a positive number`);
+    }
+    return value;
+  }
+
+  static assertServerString(value, fieldName) {
+    if (typeof value !== "string" || value.trim().length === 0) {
+      throw new HAppsClientError(`${fieldName} must be a non-empty string`);
+    }
+  }
+
+  static createHAppsSignature(secret, method, path, timestamp, body) {
+    HAppsClient.assertServerString(secret, "secret");
+    HAppsClient.assertServerString(method, "method");
+    HAppsClient.assertServerString(path, "path");
+    HAppsClient.assertServerString(timestamp, "timestamp");
+
+    const bodyHash = crypto
+      .createHash("sha256")
+      .update(body ? JSON.stringify(body) : "")
+      .digest("hex");
+
+    return crypto
+      .createHmac("sha256", secret)
+      .update(`${method.toUpperCase()}\n${path}\n${timestamp}\n${bodyHash}`)
+      .digest("hex");
+  }
+
+  static verifyHAppsRequest(params) {
+    const {
+      secret,
+      method,
+      path,
+      timestamp,
+      signature,
+      body,
+      clientId,
+      expectedClientId,
+      maxAgeSeconds = 300,
+      now = Date.now(),
+    } = params || {};
+
+    HAppsClient.assertServerString(signature, "signature");
+
+    if (expectedClientId !== undefined) {
+      HAppsClient.assertServerString(clientId, "clientId");
+      HAppsClient.assertServerString(expectedClientId, "expectedClientId");
+      if (clientId !== expectedClientId) {
+        throw new HAppsSignatureError("Invalid client id");
+      }
+    }
+
+    const ts = Number.parseInt(timestamp, 10);
+    if (!Number.isFinite(ts)) {
+      throw new HAppsSignatureError("Invalid timestamp");
+    }
+
+    const nowSeconds = Math.floor(now / 1000);
+    if (Math.abs(nowSeconds - ts) > maxAgeSeconds) {
+      throw new HAppsSignatureError("Timestamp expired");
+    }
+
+    const expected = HAppsClient.createHAppsSignature(secret, method, path, String(timestamp), body);
+    const expectedBuffer = Buffer.from(expected);
+    const signatureBuffer = Buffer.from(signature);
+
+    if (expectedBuffer.length !== signatureBuffer.length || !crypto.timingSafeEqual(expectedBuffer, signatureBuffer)) {
+      throw new HAppsSignatureError("Invalid signature");
+    }
+
+    return true;
+  }
+
+  static parsePaymentValidationRequest(payload) {
+    return {
+      publicId: HAppsClient.requirePayloadString(payload, "publicId"),
+      requestId: HAppsClient.requirePayloadString(payload, "requestId"),
+      productId: HAppsClient.requirePayloadString(payload, "productId"),
+      price: HAppsClient.requirePayloadPositiveNumber(payload, "price"),
+      currency: HAppsClient.requirePayloadString(payload, "currency"),
+      desc: HAppsClient.requirePayloadString(payload, "desc"),
+    };
+  }
+
+  static parsePaymentPostback(payload) {
+    const status = HAppsClient.requirePayloadString(payload, "status");
+    if (status !== "approved" && status !== "denied") {
+      throw new HAppsClientError("status must be approved or denied");
+    }
+
+    return {
+      publicId: HAppsClient.requirePayloadString(payload, "publicId"),
+      orderId: HAppsClient.requirePayloadString(payload, "orderId"),
+      requestId: HAppsClient.requirePayloadString(payload, "requestId"),
+      status,
+      transactionId: typeof payload?.transactionId === "string" && payload.transactionId.trim()
+        ? payload.transactionId.trim()
+        : null,
+      price: HAppsClient.requirePayloadString(payload, "price"),
+      currency: HAppsClient.requirePayloadString(payload, "currency"),
+    };
+  }
+}
+
+class HAppsClientError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "HAppsClientError";
+  }
+}
+
+class HAppsTimeoutError extends HAppsClientError {
+  constructor(method, path) {
+    super(`Request timed out: ${method} ${path}`);
+    this.name = "HAppsTimeoutError";
+    this.method = method;
+    this.path = path;
+  }
+}
+
+class HAppsHttpError extends HAppsClientError {
+  constructor({ status, method, path, bodyText, errorCode }) {
+    super(`HTTP ${status}: ${errorCode || bodyText || "request_failed"}`);
+    this.name = "HAppsHttpError";
+    this.status = status;
+    this.method = method;
+    this.path = path;
+    this.bodyText = bodyText;
+    this.errorCode = errorCode;
+  }
+}
+
+class HAppsNetworkError extends HAppsClientError {
+  constructor(method, path, cause) {
+    super(`Network error: ${method} ${path}`);
+    this.name = "HAppsNetworkError";
+    this.method = method;
+    this.path = path;
+    this.cause = cause;
+  }
+}
+
+class HAppsSignatureError extends HAppsClientError {
+  constructor(message) {
+    super(message);
+    this.name = "HAppsSignatureError";
+  }
 }
 
 module.exports = {
@@ -272,4 +365,5 @@ module.exports = {
   HAppsTimeoutError,
   HAppsHttpError,
   HAppsNetworkError,
+  HAppsSignatureError,
 };

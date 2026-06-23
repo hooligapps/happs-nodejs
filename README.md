@@ -7,7 +7,7 @@ Node.js client for the Hooligapps Bridge API.
 From the Git repository:
 
 ```bash
-npm i git+https://github.com/hooligapps/happs-nodejs.git#v1.0.2
+npm i git+https://github.com/hooligapps/happs-nodejs.git#v1.0.3
 ```
 
 Local install from the project folder:
@@ -42,7 +42,6 @@ const { HAppsClient } = require("./client");
 - `verifyToken(token)`
 - `getProfile(publicId)`
 - `initPayment(publicId, pid, name, price, currency, desc)`
-- `createCheckout(publicId, pid, name, price, currency, desc, options?)`
 - `getPayment(orderId)`
 
 ## Interaction Flows
@@ -69,7 +68,7 @@ sequenceDiagram
     participant U as User
 
     GS->>HP: initPayment(publicId, pid, ...)
-    HP-->>GS: { orderId, checkoutUrl }
+    HP-->>GS: { orderId }
     U->>HP: complete checkout
     GS->>HP: getPayment(orderId)
     HP-->>GS: { status, ... }
@@ -92,17 +91,7 @@ async function run(token) {
       "USD",
       "Starter pack",
     );
-    const checkout = await client.createCheckout(
-      tokenData.sub,
-      "76df333e-b84a-46c2-a4f0-4b6c078c70f6",
-      "150 crystals",
-      9.99,
-      "USD",
-      "Starter pack",
-      { redirectUrl: "mygame://payment-finish" },
-    );
-
-    console.log(profile.publicId, payment.orderId, checkout.paymentUrl);
+    console.log(profile.publicId, payment.orderId);
   } catch (e) {
     if (e instanceof HAppsHttpError) {
       console.error("HTTP", e.status, e.errorCode, e.bodyText);
@@ -120,6 +109,67 @@ async function run(token) {
   }
 }
 ```
+
+
+## Server-side Portal Request Helpers
+
+Use these helpers on the game server for Portal -> game server requests such as mobile payment validation and payment postback.
+
+```js
+const { HAppsClient } = require("happs-nodejs");
+
+function verifyPortal(req, gameApiSecret, expectedClientId) {
+  return HAppsClient.verifyHAppsRequest({
+    secret: gameApiSecret,
+    method: req.method,
+    path: req.path,
+    timestamp: req.headers["x-timestamp"],
+    signature: req.headers["x-signature"],
+    body: req.body,
+    clientId: req.headers["x-game-id"],
+    expectedClientId,
+  });
+}
+
+app.post("/api/v1/mobile/payment/validate", express.json(), (req, res) => {
+  verifyPortal(req, process.env.HAPPS_API_SECRET, process.env.HAPPS_CLIENT_ID);
+  const payment = HAppsClient.parsePaymentValidationRequest(req.body);
+
+  res.json({
+    ok: true,
+    product: {
+      productId: payment.productId,
+      price: 2.99,
+      currency: "USD",
+      desc: "Starter pack",
+      name: "Starter pack",
+    },
+  });
+});
+
+app.post("/api/v1/mobile/payment/postback", express.json(), async (req, res) => {
+  verifyPortal(req, process.env.HAPPS_API_SECRET, process.env.HAPPS_CLIENT_ID);
+  const postback = HAppsClient.parsePaymentPostback(req.body);
+
+  if (postback.status === "approved") {
+    await grantRewardOnce(postback.requestId, postback.orderId, postback.publicId);
+  }
+
+  res.json({ ok: true });
+});
+```
+
+The signature format matches the bridge HMAC format:
+
+```text
+METHOD + "\n" + path + "\n" + timestamp + "\n" + sha256(JSON.stringify(body))
+```
+
+Expected headers:
+
+- `x-game-id`
+- `x-timestamp`
+- `x-signature`
 
 ## JWKS Token Verification Example
 
