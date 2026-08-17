@@ -7,7 +7,7 @@ Node.js client for the Hooligapps Bridge API.
 From the Git repository:
 
 ```bash
-npm i git+https://github.com/hooligapps/happs-nodejs.git#v1.0.3
+npm i git+https://github.com/hooligapps/happs-nodejs.git#v1.1.0
 ```
 
 Local install from the project folder:
@@ -18,7 +18,8 @@ npm i .
 
 ## Requirements
 
-- Node.js 18+
+- Node.js 20+
+- `platformUrl` must be an absolute HTTP(S) origin without credentials, path, query, or hash.
 
 ## Usage
 
@@ -34,7 +35,7 @@ const {
 If you use it locally from the library folder:
 
 ```js
-const { HAppsClient } = require("./client");
+const { HAppsClient } = require("./index");
 ```
 
 ## Methods
@@ -43,6 +44,61 @@ const { HAppsClient } = require("./client");
 - `getProfile(publicId)`
 - `initPayment(publicId, pid, name, price, currency, desc)`
 - `getPayment(orderId)`
+- `createSessionLink(publicId)`
+
+`HAppsOidcClient` methods:
+
+- `createAuthorizationRequest(options)`
+- `exchangeAuthorizationCode(callbackUrl, expected)`
+- `getUserInfo(tokens, options)`
+
+## OIDC Authorization Code Flow
+
+The SDK creates the portal authorization URL and performs the callback exchange. The game server remains responsible for storing the returned state, nonce and PKCE verifier in its own session or Redis storage.
+
+```js
+const { HAppsOidcClient } = require("happs-nodejs/oidc");
+
+const oidc = new HAppsOidcClient({
+  issuerUrl: "https://hooli.games/idp/oidc",
+  clientId: "CLIENT_ID",
+  clientSecret: "OIDC_CLIENT_SECRET",
+  redirectUri: "https://game.example.com/api/auth/idp/callback",
+  scope: "openid email",
+});
+
+const authorization = await oidc.createAuthorizationRequest();
+
+await saveAuthorizationState({
+  state: authorization.state,
+  nonce: authorization.nonce,
+  codeVerifier: authorization.codeVerifier,
+});
+
+// Redirect the browser to authorization.url.
+
+const tokens = await oidc.exchangeAuthorizationCode(callbackUrl, {
+  state: authorization.state,
+  nonce: authorization.nonce,
+  codeVerifier: authorization.codeVerifier,
+});
+
+const userInfo = await oidc.getUserInfo(tokens);
+```
+
+`HAppsClient` and `HAppsOidcClient` are configured separately because the Bridge API secret and OIDC client secret may differ. Both `jose` and `openid-client` are installed automatically with this package. The OIDC issuer and redirect URI are fixed for the lifetime of the client so the authorization and callback steps cannot accidentally use different values. Pass `prompt: "login"` explicitly only when the portal must reauthenticate the user. UI concerns such as opening a popup and receiving `postMessage` events intentionally remain outside this Node.js package.
+
+## Portal Session Link
+
+Create a short-lived, single-use link that signs the linked player into the portal when opened:
+
+```js
+const { url, expiresIn } = await client.createSessionLink(
+  "8a46b842-3034-4c96-b2e2-8c3cb04b72bb",
+);
+```
+
+Call this method only on the game server. The Bridge request is authenticated with the game's HMAC secret. After creating the portal session, the link redirects to the portal home page.
 
 ## Interaction Flows
 
@@ -191,11 +247,15 @@ async function verifyWithJwks(token) {
 }
 ```
 
+`verifyTokenJWKS()` verifies the JWT signature, issuer, audience, expiration and required launch-token claims locally. It does not consume or persist `jti`, so it cannot prevent replay by itself. Use the Bridge `verifyToken()` method when the token must be accepted only once.
+
 ## Client Features
 
 - HMAC request signing compatible with bridge guard format
 - `X-Request-Id` for every request
 - retries for timeout/network/HTTP 5xx
+- retries are limited to GET requests; POST requests are never retried automatically
+- one `X-Request-Id` is preserved across all attempts of a logical request
 - input validation (`price > 0`, required strings must be non-empty)
 - typed errors for easier integration handling
 

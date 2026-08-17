@@ -1,8 +1,9 @@
 export interface TokenPayload {
   sub: string;
   verified: boolean;
-  aud: string;
+  aud: string | string[];
   exp: number;
+  jti: string;
 }
 
 export interface Profile {
@@ -26,8 +27,15 @@ export interface PaymentInitResult {
 
 export interface PaymentStatus {
   orderId: string;
+  purchaseId: string;
   status: "approved" | "denied" | "pending";
   transactionId: string | null;
+  isTest: boolean;
+}
+
+export interface SessionLinkResult {
+  url: string;
+  expiresIn: number;
 }
 
 export interface VerifyHAppsRequestParams {
@@ -72,6 +80,7 @@ export interface PortalPaymentPostback {
   transactionId: string | null;
   price: string;
   currency: string;
+  isTest: boolean;
 }
 
 export class HAppsClient {
@@ -94,12 +103,14 @@ export class HAppsClient {
     desc: string,
   ): Promise<PaymentInitResult>;
   getPayment(orderId: string): Promise<PaymentStatus>;
+  createSessionLink(publicId: string): Promise<SessionLinkResult>;
 
   verifyTokenJWKS(token: string): Promise<TokenPayload>;
 
   static requirePayloadString(payload: any, fieldName: string): string;
   static requirePayloadPositiveNumber(payload: any, fieldName: string): number;
   static assertServerString(value: unknown, fieldName: string): void;
+  static normalizePlatformUrl(value: string): string;
   static createHAppsSignature(
     secret: string,
     method: string,

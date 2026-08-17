@@ -9,6 +9,25 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ### Added
 - 
 
+## [1.1.0] - 2026-08-12
+
+### Added
+- OIDC authorization-code flow with discovery, state, nonce and PKCE helpers.
+- Authorization code exchange and UserInfo helpers.
+- Short-lived, single-use portal session links for linked players.
+
+### Changed
+- The package root exports the Bridge client through `index.js`; OIDC is exposed only through the separate `happs-nodejs/oidc` entrypoint.
+- OIDC authorization requests no longer force `prompt=login` by default.
+- Platform URLs are validated and secrets are no longer enumerable object properties.
+- Request timeouts now cover response body reads, path parameters are URL-encoded, and `jose` is loaded through ESM-compatible dynamic import.
+- Automatic retries are limited to GET requests and reuse one request ID across attempts.
+- `HAppsOidcClient` now accepts one configuration object containing the issuer, redirect URI, client credentials, and default scope.
+- Payment status and postback types now include portal purchase/test fields; postback parsing validates `isTest`.
+- OIDC code exchange validates the required state, nonce, and PKCE verifier before calling the provider.
+- Local JWKS verification validates required launch-token claims and exposes `jti`; token audiences may be a string or string array.
+- Node.js 20 is now the minimum supported runtime; `jose` and `openid-client` are installed as direct dependencies.
+
 ## [1.0.2] - 2026-06-17
 
 ### Added

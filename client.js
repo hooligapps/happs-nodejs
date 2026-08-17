@@ -6,9 +6,14 @@ class HAppsClient {
     if (!clientId) throw new Error("clientId is required");
     if (!secret) throw new Error("secret is required");
 
-    this.platformUrl = platformUrl.replace(/\/+$/, "");
+    this.platformUrl = HAppsClient.normalizePlatformUrl(platformUrl);
     this.clientId = clientId;
-    this.secret = secret;
+    Object.defineProperty(this, "secret", {
+      value: secret,
+      enumerable: false,
+      writable: false,
+      configurable: false,
+    });
     this.timeout = timeout;
     this.maxRetries = 2;
     this.retryDelayMs = 200;
@@ -60,14 +65,15 @@ class HAppsClient {
 
   async _makeRequest(method, path, body) {
     let lastError;
+    const requestId = this.createRequestId();
+    const maxRetries = method === "GET" ? this.maxRetries : 0;
 
-    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
-      const requestId = this.createRequestId();
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         return await this._makeRequestOnce(method, path, body, requestId);
       } catch (err) {
         lastError = err;
-        if (!this.isRetryableError(err) || attempt === this.maxRetries) {
+        if (!this.isRetryableError(err) || attempt === maxRetries) {
           throw err;
         }
         await this.sleep(this.retryDelayMs * (attempt + 1));
@@ -95,10 +101,9 @@ class HAppsClient {
 
     try {
       const response = await fetch(url, options);
-      clearTimeout(timeoutId);
 
       if (!response.ok) {
-        const text = await response.text().catch(() => "");
+        const text = await response.text();
         let errorCode;
         try {
           const parsed = text ? JSON.parse(text) : null;
@@ -119,9 +124,9 @@ class HAppsClient {
         });
       }
 
-      return response.json();
+      const data = await response.json();
+      return data;
     } catch (err) {
-      clearTimeout(timeoutId);
       if (err.name === "AbortError") {
         throw new HAppsTimeoutError(method, path);
       }
@@ -129,6 +134,8 @@ class HAppsClient {
         throw err;
       }
       throw new HAppsNetworkError(method, path, err);
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
@@ -140,7 +147,7 @@ class HAppsClient {
 
   async getProfile(publicId) {
     this.assertNonEmptyString(publicId, "publicId");
-    const path = `/api/v1/bridge/profile/${publicId}`;
+    const path = `/api/v1/bridge/profile/${encodeURIComponent(publicId)}`;
     return this._makeRequest("GET", path);
   }
 
@@ -165,19 +172,20 @@ class HAppsClient {
 
   async getPayment(orderId) {
     this.assertNonEmptyString(orderId, "orderId");
-    const path = `/api/v1/bridge/payment/${orderId}`;
+    const path = `/api/v1/bridge/payment/${encodeURIComponent(orderId)}`;
     return this._makeRequest("GET", path);
   }
 
+  async createSessionLink(publicId) {
+    this.assertNonEmptyString(publicId, "publicId");
+
+    const path = "/api/v1/bridge/session-link";
+    return this._makeRequest("POST", path, { publicId });
+  }
+
   async verifyTokenJWKS(token) {
-    let jose;
-    try {
-      jose = require("jose");
-    } catch {
-      throw new Error(
-        'jose is required for verifyTokenJWKS. Install it: npm install jose'
-      );
-    }
+    this.assertNonEmptyString(token, "token");
+    const jose = await this._loadJose();
 
     if (!this._jwks) {
       const jwksUrl = new URL(`${this.platformUrl}/idp/oidc/jwks`);
@@ -191,12 +199,51 @@ class HAppsClient {
       audience: this.clientId,
     });
 
+    if (typeof payload.sub !== "string" || payload.sub.trim().length === 0) {
+      throw new HAppsClientError("JWT sub claim must be a non-empty string");
+    }
+    if (
+      typeof payload.aud !== "string" &&
+      !(
+        Array.isArray(payload.aud) &&
+        payload.aud.length > 0 &&
+        payload.aud.every((value) => typeof value === "string" && value.trim().length > 0)
+      )
+    ) {
+      throw new HAppsClientError("JWT aud claim must be a string or a non-empty string array");
+    }
+    if (typeof payload.exp !== "number" || !Number.isFinite(payload.exp)) {
+      throw new HAppsClientError("JWT exp claim must be a finite number");
+    }
+    if (typeof payload.verified !== "boolean") {
+      throw new HAppsClientError("JWT verified claim must be a boolean");
+    }
+    if (typeof payload.jti !== "string" || payload.jti.trim().length === 0) {
+      throw new HAppsClientError("JWT jti claim must be a non-empty string");
+    }
+
     return {
       sub: payload.sub,
       verified: payload.verified,
       aud: payload.aud,
       exp: payload.exp,
+      jti: payload.jti,
     };
+  }
+
+  async _loadJose() {
+    if (!this._josePromise) {
+      this._josePromise = import("jose").catch((error) => {
+        this._josePromise = undefined;
+        if (error && error.code === "ERR_MODULE_NOT_FOUND") {
+          throw new HAppsClientError(
+            "jose is required for verifyTokenJWKS. Install it: npm install jose",
+          );
+        }
+        throw error;
+      });
+    }
+    return this._josePromise;
   }
 
   static requirePayloadString(payload, fieldName) {
@@ -219,6 +266,29 @@ class HAppsClient {
     if (typeof value !== "string" || value.trim().length === 0) {
       throw new HAppsClientError(`${fieldName} must be a non-empty string`);
     }
+  }
+
+  static normalizePlatformUrl(value) {
+    HAppsClient.assertServerString(value, "platformUrl");
+
+    let url;
+    try {
+      url = new URL(value);
+    } catch {
+      throw new HAppsClientError("platformUrl must be a valid absolute URL");
+    }
+
+    if (url.protocol !== "https:" && url.protocol !== "http:") {
+      throw new HAppsClientError("platformUrl must use http or https");
+    }
+    if (url.username || url.password) {
+      throw new HAppsClientError("platformUrl must not contain credentials");
+    }
+    if (url.pathname !== "/" || url.search || url.hash) {
+      throw new HAppsClientError("platformUrl must contain only an origin");
+    }
+
+    return url.origin;
   }
 
   static createHAppsSignature(secret, method, path, timestamp, body) {
@@ -299,6 +369,9 @@ class HAppsClient {
     if (status !== "approved" && status !== "denied") {
       throw new HAppsClientError("status must be approved or denied");
     }
+    if (typeof payload?.isTest !== "boolean") {
+      throw new HAppsClientError("isTest must be a boolean");
+    }
 
     return {
       publicId: HAppsClient.requirePayloadString(payload, "publicId"),
@@ -310,6 +383,7 @@ class HAppsClient {
         : null,
       price: HAppsClient.requirePayloadString(payload, "price"),
       currency: HAppsClient.requirePayloadString(payload, "currency"),
+      isTest: payload.isTest,
     };
   }
 }
