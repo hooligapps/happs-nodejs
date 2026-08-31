@@ -45,6 +45,7 @@ const { HAppsClient } = require("./index");
 - `initPayment(publicId, pid, name, price, currency, desc)`
 - `getPayment(orderId)`
 - `createSessionLink(publicId)`
+- `migrateAccount(params)`
 
 `HAppsOidcClient` methods:
 
@@ -99,6 +100,25 @@ const { url, expiresIn } = await client.createSessionLink(
 ```
 
 Call this method only on the game server. The Bridge request is authenticated with the game's HMAC secret. After creating the portal session, the link redirects to the portal home page.
+
+## Account Migration
+
+Migrate a verified game account and create or reuse its portal game link:
+
+```js
+const { publicId } = await client.migrateAccount({
+  userId: "123456",
+  email: "player@example.com",
+  credential: {
+    algorithm: "bcrypt",
+    hash: "$2b$10$...",
+  },
+});
+```
+
+`migrateAccount(params)` accepts `AccountMigrationParams` and returns `Promise<AccountMigrationResult>`. Both TypeScript interfaces are exported by `happs-nodejs`. The `credential.algorithm` field may be omitted and defaults to `bcrypt`, which is the only algorithm currently accepted.
+
+Call this method only on the game server and only for accounts whose email was verified by the game. Account migration must be explicitly enabled for the game by the platform. The bcrypt hash is transferred unchanged; the SDK does not convert or log it. If the email already belongs to an active verified portal account, its existing portal credential is preserved and only the game is linked.
 
 ## Interaction Flows
 

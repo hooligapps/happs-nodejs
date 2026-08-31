@@ -38,6 +38,19 @@ export interface SessionLinkResult {
   expiresIn: number;
 }
 
+export interface AccountMigrationParams {
+  userId: string;
+  email: string;
+  credential: {
+    algorithm?: "bcrypt";
+    hash: string;
+  };
+}
+
+export interface AccountMigrationResult {
+  publicId: string;
+}
+
 export interface VerifyHAppsRequestParams {
   secret: string;
   method: string;
@@ -104,6 +117,7 @@ export class HAppsClient {
   ): Promise<PaymentInitResult>;
   getPayment(orderId: string): Promise<PaymentStatus>;
   createSessionLink(publicId: string): Promise<SessionLinkResult>;
+  migrateAccount(params: AccountMigrationParams): Promise<AccountMigrationResult>;
 
   verifyTokenJWKS(token: string): Promise<TokenPayload>;
 

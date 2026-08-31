@@ -7,7 +7,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ## [Unreleased]
 
 ### Added
-- 
+- `migrateAccount(params)` for importing verified bcrypt accounts and linking games.
 
 ## [1.1.0] - 2026-08-12
 

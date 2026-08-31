@@ -1,5 +1,7 @@
 const crypto = require("crypto");
 
+const BCRYPT_HASH_PATTERN = /^\$2[aby]\$(?:0[4-9]|1[0-5])\$[./A-Za-z0-9]{53}$/;
+
 class HAppsClient {
   constructor(platformUrl, clientId, secret, timeout = 5000) {
     if (!platformUrl) throw new Error("platformUrl is required");
@@ -181,6 +183,29 @@ class HAppsClient {
 
     const path = "/api/v1/bridge/session-link";
     return this._makeRequest("POST", path, { publicId });
+  }
+
+  async migrateAccount(params) {
+    const userId = HAppsClient.requirePayloadString(params, "userId");
+    const email = HAppsClient.requirePayloadString(params, "email");
+    const credential = params?.credential;
+    const algorithm = credential?.algorithm ?? "bcrypt";
+
+    if (!credential || algorithm !== "bcrypt") {
+      throw new HAppsClientError("credential.algorithm must be bcrypt");
+    }
+
+    const hash = HAppsClient.requirePayloadString(credential, "hash");
+    if (!BCRYPT_HASH_PATTERN.test(hash)) {
+      throw new HAppsClientError("credential.hash must be a supported bcrypt hash");
+    }
+
+    const path = "/api/v1/bridge/account-migration";
+    return this._makeRequest("POST", path, {
+      userId,
+      email,
+      credential: { algorithm, hash },
+    });
   }
 
   async verifyTokenJWKS(token) {
