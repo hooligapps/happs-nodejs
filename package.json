@@ -1,6 +1,6 @@
 {
   "name": "happs-nodejs",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Node.js client for Hooligapps Bridge API",
   "main": "index.js",
   "types": "index.d.ts",

@@ -4,10 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project follows Semantic Versioning.
 
-## [Unreleased]
+## [1.1.1] - 2026-09-04
 
 ### Added
 - `migrateAccount(params)` for importing verified bcrypt accounts and linking games.
+- `initPaymentByUserId(params)` for creating a game link and payment URL for players without a portal `publicId`.
+- `bindUserId(params)` for binding a portal/OIDC game link to the game's stable user ID.
+- `submitGameSession(params)` for submitting the current game session user to a portal authentication attempt.
 
 ## [1.1.0] - 2026-08-12
 

@@ -1,5 +1,6 @@
 export interface TokenPayload {
   sub: string;
+  userId?: string;
   verified: boolean;
   aud: string | string[];
   exp: number;
@@ -25,6 +26,21 @@ export interface PaymentInitResult {
   orderId: string;
 }
 
+export interface UserPaymentInitParams {
+  userId: string;
+  pid: string;
+  name: string;
+  price: number;
+  currency: string;
+  desc: string;
+}
+
+export interface UserPaymentInitResult {
+  publicId: string;
+  orderId: string;
+  paymentUrl: string;
+}
+
 export interface PaymentStatus {
   orderId: string;
   purchaseId: string;
@@ -38,6 +54,16 @@ export interface SessionLinkResult {
   expiresIn: number;
 }
 
+export interface BindUserIdParams {
+  publicId: string;
+  userId: string;
+}
+
+export interface BindUserIdResult {
+  publicId: string;
+  userId: string;
+}
+
 export interface AccountMigrationParams {
   userId: string;
   email: string;
@@ -49,6 +75,15 @@ export interface AccountMigrationParams {
 
 export interface AccountMigrationResult {
   publicId: string;
+}
+
+export interface SubmitGameSessionParams {
+  authId: string;
+  userId?: string;
+}
+
+export interface SubmitGameSessionResult {
+  redirectUrl: string;
 }
 
 export interface VerifyHAppsRequestParams {
@@ -115,9 +150,12 @@ export class HAppsClient {
     currency: string,
     desc: string,
   ): Promise<PaymentInitResult>;
+  initPaymentByUserId(params: UserPaymentInitParams): Promise<UserPaymentInitResult>;
   getPayment(orderId: string): Promise<PaymentStatus>;
   createSessionLink(publicId: string): Promise<SessionLinkResult>;
+  bindUserId(params: BindUserIdParams): Promise<BindUserIdResult>;
   migrateAccount(params: AccountMigrationParams): Promise<AccountMigrationResult>;
+  submitGameSession(params: SubmitGameSessionParams): Promise<SubmitGameSessionResult>;
 
   verifyTokenJWKS(token: string): Promise<TokenPayload>;
 

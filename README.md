@@ -7,7 +7,7 @@ Node.js client for the Hooligapps Bridge API.
 From the Git repository:
 
 ```bash
-npm i git+https://github.com/hooligapps/happs-nodejs.git#v1.1.0
+npm i git+https://github.com/hooligapps/happs-nodejs.git#v1.1.1
 ```
 
 Local install from the project folder:
@@ -43,9 +43,12 @@ const { HAppsClient } = require("./index");
 - `verifyToken(token)`
 - `getProfile(publicId)`
 - `initPayment(publicId, pid, name, price, currency, desc)`
+- `initPaymentByUserId(params)`
 - `getPayment(orderId)`
 - `createSessionLink(publicId)`
+- `bindUserId(params)`
 - `migrateAccount(params)`
+- `submitGameSession(params)`
 
 `HAppsOidcClient` methods:
 
@@ -101,6 +104,21 @@ const { url, expiresIn } = await client.createSessionLink(
 
 Call this method only on the game server. The Bridge request is authenticated with the game's HMAC secret. After creating the portal session, the link redirects to the portal home page.
 
+## Complete Portal Authentication
+
+After the browser reaches the game, read the game's own session cookie and complete the portal authentication attempt:
+
+```js
+const result = await client.submitGameSession({
+  authId: request.query.authId,
+  ...(currentPlayer ? { userId: String(currentPlayer.id) } : {}),
+});
+
+response.redirect(result.redirectUrl);
+```
+
+Omit `userId` when the game session does not exist. Never copy the expected user ID from an email URL into this field. Hooligapps compares the expected user stored for `authId` with the current game user. The game should redirect the browser only to the returned `redirectUrl`.
+
 ## Account Migration
 
 Migrate a verified game account and create or reuse its portal game link:
@@ -149,6 +167,36 @@ sequenceDiagram
     GS->>HP: getPayment(orderId)
     HP-->>GS: { status, ... }
 ```
+
+For a game player who does not have a Hooligapps `publicId` yet, initialize the payment by the game's stable user ID:
+
+```js
+const payment = await client.initPaymentByUserId({
+  userId: "123456",
+  pid: "purchase-789",
+  name: "1000 Gold",
+  price: 9.99,
+  currency: "USD",
+  desc: "1000 Gold",
+});
+
+// Send only payment.paymentUrl to the game client and open it in the browser.
+// Store payment.publicId for future Bridge calls when possible.
+console.log(payment.publicId, payment.orderId, payment.paymentUrl);
+```
+
+`userId` is the stable player ID owned by the game. Hooligapps finds or creates an unregistered game link for `(game, userId)`. A later `migrateAccount(...)` call for the same `userId` claims that link without changing its `publicId` or payment history.
+
+After resolving or creating a local player from a portal/OIDC launch, bind the game's stable user ID once:
+
+```js
+await client.bindUserId({
+  publicId: tokenData.sub,
+  userId: String(localPlayer.id),
+});
+```
+
+The operation is idempotent for the same pair. It returns `409 Conflict` instead of replacing either side when the `publicId` or `userId` is already bound differently.
 
 ## Example
 
@@ -261,11 +309,14 @@ async function verifyWithJwks(token) {
 
   return {
     sub: payload.sub,
+    userId: payload.userId,
     verified: payload.verified,
     aud: payload.aud,
   };
 }
 ```
+
+`userId` is optional. It is present only when the game link is already bound to a game user via `bindUserId()` or account migration. For a new portal launch, create the game user using `sub` as the portal link ID, then call `bindUserId()`.
 
 `verifyTokenJWKS()` verifies the JWT signature, issuer, audience, expiration and required launch-token claims locally. It does not consume or persist `jti`, so it cannot prevent replay by itself. Use the Bridge `verifyToken()` method when the token must be accepted only once.
 

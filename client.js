@@ -172,6 +172,26 @@ class HAppsClient {
     });
   }
 
+  async initPaymentByUserId(params) {
+    const userId = HAppsClient.requirePayloadString(params, "userId");
+    const pid = HAppsClient.requirePayloadString(params, "pid");
+    const name = HAppsClient.requirePayloadString(params, "name");
+    const price = params?.price;
+    this.assertPositiveNumber(price, "price");
+    const currency = HAppsClient.requirePayloadString(params, "currency");
+    const desc = HAppsClient.requirePayloadString(params, "desc");
+
+    const path = "/api/v1/bridge/payment/by-user";
+    return this._makeRequest("POST", path, {
+      userId,
+      pid,
+      name,
+      price,
+      currency,
+      desc,
+    });
+  }
+
   async getPayment(orderId) {
     this.assertNonEmptyString(orderId, "orderId");
     const path = `/api/v1/bridge/payment/${encodeURIComponent(orderId)}`;
@@ -183,6 +203,13 @@ class HAppsClient {
 
     const path = "/api/v1/bridge/session-link";
     return this._makeRequest("POST", path, { publicId });
+  }
+
+  async bindUserId(params) {
+    const publicId = HAppsClient.requirePayloadString(params, "publicId");
+    const userId = HAppsClient.requirePayloadString(params, "userId");
+    const path = "/api/v1/bridge/bind-user-id";
+    return this._makeRequest("POST", path, { publicId, userId });
   }
 
   async migrateAccount(params) {
@@ -206,6 +233,17 @@ class HAppsClient {
       email,
       credential: { algorithm, hash },
     });
+  }
+
+  async submitGameSession(params) {
+    const authId = HAppsClient.requirePayloadString(params, "authId");
+    const body = { authId };
+
+    if (params?.userId !== undefined && params?.userId !== null) {
+      body.userId = HAppsClient.requirePayloadString(params, "userId");
+    }
+
+    return this._makeRequest("POST", "/api/v1/bridge/auth/game-session", body);
   }
 
   async verifyTokenJWKS(token) {
@@ -246,9 +284,16 @@ class HAppsClient {
     if (typeof payload.jti !== "string" || payload.jti.trim().length === 0) {
       throw new HAppsClientError("JWT jti claim must be a non-empty string");
     }
+    if (
+      payload.userId !== undefined &&
+      (typeof payload.userId !== "string" || payload.userId.trim().length === 0)
+    ) {
+      throw new HAppsClientError("JWT userId claim must be a non-empty string");
+    }
 
     return {
       sub: payload.sub,
+      ...(payload.userId !== undefined ? { userId: payload.userId } : {}),
       verified: payload.verified,
       aud: payload.aud,
       exp: payload.exp,
