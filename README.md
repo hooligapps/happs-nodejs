@@ -7,7 +7,7 @@ Node.js client for the Hooligapps Bridge API.
 From the Git repository:
 
 ```bash
-npm i git+https://github.com/hooligapps/happs-nodejs.git#v1.1.1
+npm i git+https://github.com/hooligapps/happs-nodejs.git#v1.2.0
 ```
 
 Local install from the project folder:
@@ -91,6 +91,51 @@ const userInfo = await oidc.getUserInfo(tokens);
 ```
 
 `HAppsClient` and `HAppsOidcClient` are configured separately because the Bridge API secret and OIDC client secret may differ. Both `jose` and `openid-client` are installed automatically with this package. The OIDC issuer and redirect URI are fixed for the lifetime of the client so the authorization and callback steps cannot accidentally use different values. Pass `prompt: "login"` explicitly only when the portal must reauthenticate the user. UI concerns such as opening a popup and receiving `postMessage` events intentionally remain outside this Node.js package.
+
+## XOffers
+
+Available since version 1.2.0 through the separate `happs-nodejs/xoffers` entrypoint,
+like `happs-nodejs/oidc`. It uses Node.js 20+ built-ins and adds no dependencies.
+
+```js
+const { XOffersClient, XOffersApiError } = require("happs-nodejs/xoffers");
+// ESM: import { XOffersClient } from "happs-nodejs/xoffers";
+
+const xoffers = new XOffersClient({
+  baseUrl: process.env.XOFFERS_ORIGIN,
+  gameId: process.env.XOFFERS_GAME_ID,
+  secret: process.env.XOFFERS_GAME_SECRET,
+});
+
+const identity = xoffers.signIdentity(String(hero.id));
+const { assignments } = await xoffers.queryAssignments(String(hero.id), origin);
+// Call after the game confirms the offer conditions:
+await xoffers.completeOffer(String(hero.id), offerId);
+
+const valid = xoffers.verifyReward({
+  rawBody: request.rawBody,
+  path: request.originalUrl,
+  method: request.method,
+  timestamp: request.get("X-XOffers-Timestamp"),
+  signature: request.get("X-XOffers-Signature"),
+});
+```
+
+Configure `baseUrl` as an origin without a trailing slash. XOffers credentials are
+independent of the Bridge and OIDC credentials. `signIdentity(userId, external?)`
+returns the signed identity; the game supplies `targets` and `locale` separately.
+`queryAssignments(userId, origin?, states?)` queries EVENT assignments and sends
+arrival context. `completeOffer(userId, offerId)` returns the completion response.
+HTTP errors use `XOffersApiError` with `status` and `response.error.code`.
+Requests have a 10-second timeout by default; redirects and automatic retries are disabled.
+
+`verifyReward` checks POST, HMAC-SHA256 over the original body and path including
+query, and timestamp within 300 seconds. The game validates the payload, checks
+`source_game_id`, grants the reward and records `grant_id` in one transaction to
+prevent duplicate rewards. This package does not store grants or award resources.
+Wire types preserve string `user_id` and `package_id`; convert them in the game.
+Standalone `createIdentitySignature`, `verifyRewardRequest`, and TypeScript types
+are also exported from `happs-nodejs/xoffers`.
 
 ## Portal Session Link
 

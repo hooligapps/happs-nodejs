@@ -1,6 +1,6 @@
 {
   "name": "happs-nodejs",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Node.js client for Hooligapps Bridge API",
   "main": "index.js",
   "types": "index.d.ts",
@@ -19,6 +19,11 @@
       "types": "./oidc.d.ts",
       "require": "./oidc.js",
       "default": "./oidc.js"
+    },
+    "./xoffers": {
+      "types": "./xoffers.d.ts",
+      "require": "./xoffers.js",
+      "default": "./xoffers.js"
     }
   },
   "files": [
@@ -28,6 +33,8 @@
     "client.d.ts",
     "oidc.js",
     "oidc.d.ts",
+    "xoffers.js",
+    "xoffers.d.ts",
     "README.md",
     "LICENSE"
   ],

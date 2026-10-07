@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project follows Semantic Versioning.
 
+## [1.2.0] - 2026-10-07
+
+### Added
+- Separate `happs-nodejs/xoffers` entrypoint with `XOffersClient` and TypeScript declarations.
+- XOffers identity signatures, reward webhook verification, assignment queries and offer completion.
+- Uses Node.js 20+ built-ins with no additional dependencies.
+
 ## [1.1.1] - 2026-09-04
 
 ### Added
