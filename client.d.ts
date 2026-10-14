@@ -1,6 +1,8 @@
 export interface TokenPayload {
   sub: string;
   userId?: string;
+  playerId?: string;
+  identityContract?: "1.2.0";
   verified: boolean;
   aud: string | string[];
   exp: number;
@@ -9,6 +11,8 @@ export interface TokenPayload {
 
 export interface Profile {
   publicId: string;
+  userId?: string | null;
+  playerId?: string | null;
   verified: boolean;
   registeredAt: string;
 }
@@ -26,8 +30,8 @@ export interface PaymentInitResult {
   orderId: string;
 }
 
-export interface UserPaymentInitParams {
-  userId: string;
+export interface PlayerPaymentInitParams {
+  playerId: string;
   pid: string;
   name: string;
   price: number;
@@ -54,6 +58,17 @@ export interface SessionLinkResult {
   expiresIn: number;
 }
 
+export interface BindPlayerIdParams {
+  publicId: string;
+  playerId: string;
+}
+
+export interface BindPlayerIdResult {
+  publicId: string;
+  playerId: string;
+}
+
+/** Legacy binding contract. Remove with bindUserId after migration. */
 export interface BindUserIdParams {
   publicId: string;
   userId: string;
@@ -65,7 +80,9 @@ export interface BindUserIdResult {
 }
 
 export interface AccountMigrationParams {
-  userId: string;
+  /** Legacy game player parameter. Prefer playerId. */
+  userId?: string;
+  playerId?: string;
   email: string;
   credential: {
     algorithm?: "bcrypt";
@@ -79,6 +96,7 @@ export interface AccountMigrationResult {
 
 export interface SubmitGameSessionParams {
   authId: string;
+  playerId?: string;
   userId?: string;
 }
 
@@ -150,9 +168,10 @@ export class HAppsClient {
     currency: string,
     desc: string,
   ): Promise<PaymentInitResult>;
-  initPaymentByUserId(params: UserPaymentInitParams): Promise<UserPaymentInitResult>;
+  initPaymentByPlayerId(params: PlayerPaymentInitParams): Promise<UserPaymentInitResult>;
   getPayment(orderId: string): Promise<PaymentStatus>;
   createSessionLink(publicId: string): Promise<SessionLinkResult>;
+  bindPlayerId(params: BindPlayerIdParams): Promise<BindPlayerIdResult>;
   bindUserId(params: BindUserIdParams): Promise<BindUserIdResult>;
   migrateAccount(params: AccountMigrationParams): Promise<AccountMigrationResult>;
   submitGameSession(params: SubmitGameSessionParams): Promise<SubmitGameSessionResult>;

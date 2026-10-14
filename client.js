@@ -172,8 +172,9 @@ class HAppsClient {
     });
   }
 
-  async initPaymentByUserId(params) {
-    const userId = HAppsClient.requirePayloadString(params, "userId");
+
+  async initPaymentByPlayerId(params) {
+    const playerId = HAppsClient.requirePayloadString(params, "playerId");
     const pid = HAppsClient.requirePayloadString(params, "pid");
     const name = HAppsClient.requirePayloadString(params, "name");
     const price = params?.price;
@@ -183,7 +184,8 @@ class HAppsClient {
 
     const path = "/api/v1/bridge/payment/by-user";
     return this._makeRequest("POST", path, {
-      userId,
+      userId: playerId,
+      playerId,
       pid,
       name,
       price,
@@ -205,15 +207,19 @@ class HAppsClient {
     return this._makeRequest("POST", path, { publicId });
   }
 
-  async bindUserId(params) {
+  async bindPlayerId(params) {
     const publicId = HAppsClient.requirePayloadString(params, "publicId");
-    const userId = HAppsClient.requirePayloadString(params, "userId");
-    const path = "/api/v1/bridge/bind-user-id";
-    return this._makeRequest("POST", path, { publicId, userId });
+    const playerId = HAppsClient.requirePayloadString(params, "playerId");
+    return this._makeRequest("POST", "/api/v1/bridge/bind-player-id", { publicId, playerId });
+  }
+
+  async bindUserId(params) {
+    const result = await this.bindPlayerId({ publicId: params?.publicId, playerId: params?.userId });
+    return { publicId: result.publicId, userId: result.playerId };
   }
 
   async migrateAccount(params) {
-    const userId = HAppsClient.requirePayloadString(params, "userId");
+    const userId = HAppsClient.requirePayloadString({ ...params, userId: params?.playerId ?? params?.userId }, "userId");
     const email = HAppsClient.requirePayloadString(params, "email");
     const credential = params?.credential;
     const algorithm = credential?.algorithm ?? "bcrypt";
@@ -230,6 +236,7 @@ class HAppsClient {
     const path = "/api/v1/bridge/account-migration";
     return this._makeRequest("POST", path, {
       userId,
+      playerId: userId,
       email,
       credential: { algorithm, hash },
     });
@@ -239,8 +246,8 @@ class HAppsClient {
     const authId = HAppsClient.requirePayloadString(params, "authId");
     const body = { authId };
 
-    if (params?.userId !== undefined && params?.userId !== null) {
-      body.userId = HAppsClient.requirePayloadString(params, "userId");
+    if ((params?.playerId ?? params?.userId) !== undefined && (params?.playerId ?? params?.userId) !== null) {
+      body.playerId = body.userId = HAppsClient.requirePayloadString({ ...params, userId: params?.playerId ?? params?.userId }, "userId");
     }
 
     return this._makeRequest("POST", "/api/v1/bridge/auth/game-session", body);
@@ -291,8 +298,12 @@ class HAppsClient {
       throw new HAppsClientError("JWT userId claim must be a non-empty string");
     }
 
+    if (payload.playerId !== undefined && (typeof payload.playerId !== "string" || !payload.playerId.trim())) throw new HAppsClientError("JWT playerId claim must be a non-empty string");
+    const playerId = payload.playerId ?? (payload.identityContract === "1.2.0" ? undefined : payload.userId);
     return {
       sub: payload.sub,
+      ...(playerId === undefined ? {} : { playerId }),
+      ...(payload.identityContract === "1.2.0" ? { identityContract: "1.2.0" } : {}),
       ...(payload.userId !== undefined ? { userId: payload.userId } : {}),
       verified: payload.verified,
       aud: payload.aud,
