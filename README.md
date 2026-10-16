@@ -43,7 +43,7 @@ const { HAppsClient } = require("./index");
 - `verifyToken(token)`
 - `getProfile(publicId)`
 - `initPayment(publicId, pid, name, price, currency, desc)`
-- `initPaymentByPlayerId(params)`
+- `initPaymentByUserId(params)`
 - `getPayment(orderId)`
 - `createSessionLink(publicId)`
 - `bindUserId(params)`
@@ -216,8 +216,8 @@ sequenceDiagram
 For a game player who does not have a Hooligapps `publicId` yet, initialize the payment by the game's stable user ID:
 
 ```js
-const payment = await client.initPaymentByPlayerId({
-  playerId: "123456",
+const payment = await client.initPaymentByUserId({
+  userId: "123456",
   pid: "purchase-789",
   name: "1000 Gold",
   price: 9.99,
@@ -381,4 +381,6 @@ Changelog: `CHANGELOG.md`.
 
 ## Identity fields
 
-For tokens marked `identityContract: "1.2.0"`, `userId` is the shared portal identity and `playerId` is the game player identifier. For legacy tokens, the client keeps `userId` and also exposes it as `playerId`. Use `playerId` in bridge request parameters; legacy `userId` inputs remain supported. `initPaymentByPlayerId` requires `playerId`; the old `initPaymentByUserId` method was removed. `bindPlayerId` is the canonical binding method and calls `/api/v1/bridge/bind-player-id`. The legacy `bindUserId` method delegates to it and retains the old response alias.
+`portalId` is the shared visitor UUID from the portal users table. `userId` is always the game user identifier (`GameLink.uid`). `linkId` is the GameLink UUID; in browser SDK user data this is `id`, and in launch tokens it is `sub`. `accId` identifies a registered portal account. The portal does not send its shared visitor UUID in the game launch token.
+
+Browser SDK 1.2.0 uses `getUser().userId` for the game identifier. The portal preserves passion-industry's old `userId = id` exception only for SDKs below 1.2.0 or without a version. Node/Python binding and payment methods use userId/user_id.

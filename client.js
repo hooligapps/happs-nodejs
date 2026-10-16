@@ -173,8 +173,8 @@ class HAppsClient {
   }
 
 
-  async initPaymentByPlayerId(params) {
-    const playerId = HAppsClient.requirePayloadString(params, "playerId");
+  async initPaymentByUserId(params) {
+    const userId = HAppsClient.requirePayloadString(params, "userId");
     const pid = HAppsClient.requirePayloadString(params, "pid");
     const name = HAppsClient.requirePayloadString(params, "name");
     const price = params?.price;
@@ -184,8 +184,7 @@ class HAppsClient {
 
     const path = "/api/v1/bridge/payment/by-user";
     return this._makeRequest("POST", path, {
-      userId: playerId,
-      playerId,
+      userId,
       pid,
       name,
       price,
@@ -193,6 +192,7 @@ class HAppsClient {
       desc,
     });
   }
+
 
   async getPayment(orderId) {
     this.assertNonEmptyString(orderId, "orderId");
@@ -207,19 +207,15 @@ class HAppsClient {
     return this._makeRequest("POST", path, { publicId });
   }
 
-  async bindPlayerId(params) {
+  async bindUserId(params) {
     const publicId = HAppsClient.requirePayloadString(params, "publicId");
-    const playerId = HAppsClient.requirePayloadString(params, "playerId");
-    return this._makeRequest("POST", "/api/v1/bridge/bind-player-id", { publicId, playerId });
+    const userId = HAppsClient.requirePayloadString(params, "userId");
+    return this._makeRequest("POST", "/api/v1/bridge/bind-user-id", { publicId, userId });
   }
 
-  async bindUserId(params) {
-    const result = await this.bindPlayerId({ publicId: params?.publicId, playerId: params?.userId });
-    return { publicId: result.publicId, userId: result.playerId };
-  }
 
   async migrateAccount(params) {
-    const userId = HAppsClient.requirePayloadString({ ...params, userId: params?.playerId ?? params?.userId }, "userId");
+    const userId = HAppsClient.requirePayloadString(params, "userId");
     const email = HAppsClient.requirePayloadString(params, "email");
     const credential = params?.credential;
     const algorithm = credential?.algorithm ?? "bcrypt";
@@ -236,7 +232,6 @@ class HAppsClient {
     const path = "/api/v1/bridge/account-migration";
     return this._makeRequest("POST", path, {
       userId,
-      playerId: userId,
       email,
       credential: { algorithm, hash },
     });
@@ -246,8 +241,8 @@ class HAppsClient {
     const authId = HAppsClient.requirePayloadString(params, "authId");
     const body = { authId };
 
-    if ((params?.playerId ?? params?.userId) !== undefined && (params?.playerId ?? params?.userId) !== null) {
-      body.playerId = body.userId = HAppsClient.requirePayloadString({ ...params, userId: params?.playerId ?? params?.userId }, "userId");
+    if (params?.userId !== undefined && params?.userId !== null) {
+      body.userId = HAppsClient.requirePayloadString(params, "userId");
     }
 
     return this._makeRequest("POST", "/api/v1/bridge/auth/game-session", body);
@@ -291,20 +286,12 @@ class HAppsClient {
     if (typeof payload.jti !== "string" || payload.jti.trim().length === 0) {
       throw new HAppsClientError("JWT jti claim must be a non-empty string");
     }
-    if (
-      payload.userId !== undefined &&
-      (typeof payload.userId !== "string" || payload.userId.trim().length === 0)
-    ) {
-      throw new HAppsClientError("JWT userId claim must be a non-empty string");
-    }
+    const userId = payload.userId;
+    if (userId !== undefined && (typeof userId !== "string" || !userId.trim())) throw new HAppsClientError("JWT userId claim must be a non-empty string");
 
-    if (payload.playerId !== undefined && (typeof payload.playerId !== "string" || !payload.playerId.trim())) throw new HAppsClientError("JWT playerId claim must be a non-empty string");
-    const playerId = payload.playerId ?? (payload.identityContract === "1.2.0" ? undefined : payload.userId);
     return {
       sub: payload.sub,
-      ...(playerId === undefined ? {} : { playerId }),
-      ...(payload.identityContract === "1.2.0" ? { identityContract: "1.2.0" } : {}),
-      ...(payload.userId !== undefined ? { userId: payload.userId } : {}),
+      ...(userId !== undefined ? { userId } : {}),
       verified: payload.verified,
       aud: payload.aud,
       exp: payload.exp,
