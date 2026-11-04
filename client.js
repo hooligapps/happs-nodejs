@@ -153,6 +153,11 @@ class HAppsClient {
     return this._makeRequest("GET", path);
   }
 
+  async getProfileByEmail(email) {
+    this.assertNonEmptyString(email, "email");
+    return this._makeRequest("POST", "/api/v1/bridge/profile/by-email", { email: email.trim() });
+  }
+
   async initPayment(publicId, pid, name, price, currency, desc) {
     this.assertNonEmptyString(publicId, "publicId");
     this.assertNonEmptyString(pid, "pid");

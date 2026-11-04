@@ -42,6 +42,7 @@ const { HAppsClient } = require("./index");
 
 - `verifyToken(token)`
 - `getProfile(publicId)`
+- `getProfileByEmail(email)`
 - `initPayment(publicId, pid, name, price, currency, desc)`
 - `initPaymentByUserId(params)`
 - `getPayment(orderId)`
@@ -49,6 +50,17 @@ const { HAppsClient } = require("./index");
 - `bindUserId(params)`
 - `migrateAccount(params)`
 - `submitGameSession(params)`
+
+`getProfileByEmail(email)` returns the same profile as `getProfile(publicId)` for
+an existing active profile in your game, linked to an active account with a
+confirmed email. It sends an HMAC-signed POST with the email in the request body.
+Missing or unavailable profiles return HTTP 404. This lookup is not player
+authentication and does not create or bind a profile.
+
+```js
+const profile = await client.getProfileByEmail("player@example.com");
+// profile.publicId: game-link UUID; profile.userId: optional game-owned ID.
+```
 
 `HAppsOidcClient` methods:
 

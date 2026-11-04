@@ -12,6 +12,8 @@ export interface Profile {
   portalId?: string | null;
   userId?: string | null;
   verified: boolean;
+  /** Confirmed portal account email; null for guests or unconfirmed addresses. */
+  email?: string | null;
   registeredAt: string;
 }
 
@@ -144,6 +146,7 @@ export class HAppsClient {
 
   verifyToken(token: string): Promise<TokenPayload>;
   getProfile(publicId: string): Promise<Profile>;
+  getProfileByEmail(email: string): Promise<Profile>;
 
   initPayment(
     publicId: string,
